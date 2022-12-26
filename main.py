@@ -7,11 +7,12 @@ if __name__ == "__main__":
     takeoff()
     mission(2)
     direction = GET_DIRECTION_OF_TARGET()
-    LEASH_TIME = 60 # 1 MINUTE
+    LEASH_TIME = 20 # seconds
     i = 0
     while i<LEASH_TIME: 
-        leashTracking() # takes one second
-        i+=1 
+        dist = leashTracking() # takes one second
+        if dist < 35:
+            i+=1 
     above = False
     while not above:
         above = helipadApproach()

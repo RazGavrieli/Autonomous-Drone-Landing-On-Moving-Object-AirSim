@@ -14,8 +14,9 @@ APPROACH_SPEED = 4
 LOWERING_SPEED = 1
 DIRECTION_OF_TARGET = 0
 SPEED_OF_TARGET = 0
+b = 0
 
-landingHeight = MISSION_HEIGHT-20
+landingHeight = MISSION_HEIGHT-15
 client = airsim.MultirotorClient() 
 
 # TODO Calculate disttance to target
@@ -48,11 +49,18 @@ def mission(delay):
 
 def GET_DIRECTION_OF_TARGET():
     global SPEED_OF_TARGET
+    global DIRECTION_OF_TARGET
+    global b
     x1, y1 = searchTarget()
     time.sleep(1)
     x2, y2 = searchTarget()
+
     DIRECTION_OF_TARGET = (y1-y2)/(x1-x2)
+    b = y1 - DIRECTION_OF_TARGET*x1
     SPEED_OF_TARGET = math.dist([x1, y1], [x2, y2])
+    if SPEED_OF_TARGET > 10:
+        logger.error("TARGET TOO QUICK")
+        exit(0)
     LEASH_SPEED = SPEED_OF_TARGET
     logger.info("target speed: %f", SPEED_OF_TARGET)
 
@@ -72,11 +80,10 @@ def leashTracking():
     currDistance = math.dist([targetx, targety], [dronex, droney])
     logger.info("drone x,y: %f ,%f | target x,y: %f ,%f", dronex, droney, targetx, targety)
     if currDistance < LEASH_DISTANCE:
-        print(SPEED_OF_TARGET)
         LEASH_SPEED = SPEED_OF_TARGET
     else:
         LEASH_SPEED = SPEED_OF_TARGET+3
-    futurey = DIRECTION_OF_TARGET*(targetx+LEASH_DISTANCE)
+    futurey = DIRECTION_OF_TARGET*(targetx+LEASH_DISTANCE) + b
     logger.info("drone got command to stay %d %s from target, go to: %f,\t %f, at speed %f, curr dist: %f", LEASH_DISTANCE, "DISTANCE UNITS", targetx+LEASH_DISTANCE, futurey, LEASH_SPEED, currDistance)
 
     client.moveToPositionAsync(targetx, futurey, -MISSION_HEIGHT, velocity=LEASH_SPEED, drivetrain=0)
@@ -95,7 +102,7 @@ def helipadApproach():
     GET_DIRECTION_OF_TARGET() # sleep one second
     dronex, droney = client.getMultirotorState().__dict__['kinematics_estimated'].position.x_val, client.getMultirotorState().__dict__['kinematics_estimated'].position.y_val # get x,y of drone
     currDistance = math.dist([targetx, targety], [dronex, droney])
-    return currDistance < 0.5
+    return currDistance < 0.1
 
 
 def guidingTargetCentering():
