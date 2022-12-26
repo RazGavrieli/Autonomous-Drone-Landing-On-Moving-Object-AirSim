@@ -2,18 +2,20 @@ import airsim
 
 import logging as logger
 import time
+import math
 
 # SET CONSTANTS
 logger.basicConfig(level=logger.INFO)
 MISSION_HEIGHT = 30
-LEASH_DISTANCE = 10
+LEASH_DISTANCE = 30
 TARGET_NAME = 'LandingTarget_2'
 LEASH_SPEED = 15
-FIRST_APPROACH_SPEED = 4
-FINAL_APPROACH_SPPED = 3
-LOWERING_SPEED = 2
+APPROACH_SPEED = 4
+LOWERING_SPEED = 1
+DIRECTION_OF_TARGET = 0
+SPEED_OF_TARGET = 0
 
-landingHeight = 30
+landingHeight = MISSION_HEIGHT-20
 client = airsim.MultirotorClient() 
 
 # TODO Calculate disttance to target
@@ -44,17 +46,42 @@ def mission(delay):
     time.sleep(delay)
     logger.info("Drone finished mission")
 
+def GET_DIRECTION_OF_TARGET():
+    global SPEED_OF_TARGET
+    x1, y1 = searchTarget()
+    time.sleep(1)
+    x2, y2 = searchTarget()
+    DIRECTION_OF_TARGET = (y1-y2)/(x1-x2)
+    SPEED_OF_TARGET = math.dist([x1, y1], [x2, y2])
+    LEASH_SPEED = SPEED_OF_TARGET
+    logger.info("target speed: %f", SPEED_OF_TARGET)
+
 def searchTarget():
     """drone is searching for target (uses client.simGetObjectPose(targetName))"""
     pose = client.simGetObjectPose(TARGET_NAME)
-    x, y = pose.__dict__['position'].x_val, pose.__dict__['position'].y_val
-    return x, y
+    targetx = ''
+    while type(targetx) != float:
+        targetx, targety = pose.__dict__['position'].x_val, pose.__dict__['position'].y_val
+    return targetx, targety
 
 def leashTracking():
     """drone is keeping a constant distance from the target (dist)"""
-    logger.info("drone got command to say %d %s from target", LEASH_DISTANCE, "DISTANCE UNITS")
-    x, y = searchTarget()
-    client.moveToPositionAsync(x+LEASH_DISTANCE, y, -MISSION_HEIGHT, velocity=LEASH_SPEED, drivetrain=0).join()
+    targetx, targety = searchTarget()
+
+    dronex, droney = client.getMultirotorState().__dict__['kinematics_estimated'].position.x_val, client.getMultirotorState().__dict__['kinematics_estimated'].position.y_val # get x,y of drone
+    currDistance = math.dist([targetx, targety], [dronex, droney])
+    logger.info("drone x,y: %f ,%f | target x,y: %f ,%f", dronex, droney, targetx, targety)
+    if currDistance < LEASH_DISTANCE:
+        print(SPEED_OF_TARGET)
+        LEASH_SPEED = SPEED_OF_TARGET
+    else:
+        LEASH_SPEED = SPEED_OF_TARGET+3
+    futurey = DIRECTION_OF_TARGET*(targetx+LEASH_DISTANCE)
+    logger.info("drone got command to stay %d %s from target, go to: %f,\t %f, at speed %f, curr dist: %f", LEASH_DISTANCE, "DISTANCE UNITS", targetx+LEASH_DISTANCE, futurey, LEASH_SPEED, currDistance)
+
+    client.moveToPositionAsync(targetx, futurey, -MISSION_HEIGHT, velocity=LEASH_SPEED, drivetrain=0)
+    GET_DIRECTION_OF_TARGET() # sleep one second
+    return currDistance
 
 def centering():
     """drone is keeping it's cameras centered on target (may not be used)"""
@@ -63,8 +90,13 @@ def centering():
 def helipadApproach():
     """drone is closing the distance to the target (getting close until right above)"""
     logger.info("drone got command to be right above the target")
-    x, y = searchTarget()
-    client.moveToPositionAsync(x, y, -MISSION_HEIGHT, velocity=FIRST_APPROACH_SPEED, drivetrain=0).join()
+    targetx, targety = searchTarget()
+    client.moveToPositionAsync(targetx, targety, -(MISSION_HEIGHT-15), velocity=SPEED_OF_TARGET+3, drivetrain=0)
+    GET_DIRECTION_OF_TARGET() # sleep one second
+    dronex, droney = client.getMultirotorState().__dict__['kinematics_estimated'].position.x_val, client.getMultirotorState().__dict__['kinematics_estimated'].position.y_val # get x,y of drone
+    currDistance = math.dist([targetx, targety], [dronex, droney])
+    return currDistance < 0.5
+
 
 def guidingTargetCentering():
     """drone is keeping the second target centered (may not be used)"""
@@ -77,10 +109,12 @@ def gimbleAdjustment():
 def finalApproach():
     """drone lowers attitude"""
     global landingHeight
-    logger.info("drone is lowering attitude right above target")
-    x, y = searchTarget()
-    client.moveToPositionAsync(x, y, -landingHeight, velocity=FINAL_APPROACH_SPPED, drivetrain=0).join()
-    landingHeight-=LOWERING_SPEED
+    targetx, targety = searchTarget()
+    logger.info("drone is lowering attitude right above target %f, %f", targetx,targety)
+    
+    client.moveToPositionAsync(targetx, targety, -landingHeight, velocity=SPEED_OF_TARGET+1, drivetrain=0)
+    GET_DIRECTION_OF_TARGET() # sleep one second
+    landingHeight -= LOWERING_SPEED
 
 def touchdown():
     """disarming the drone when its right on target"""
@@ -88,5 +122,5 @@ def touchdown():
     return client.armDisarm(False)
 
 def fail_safe():
-    logger.info("mayday :(")
+    logger.warning("mayday :(")
     client.hoverAsync().join()
