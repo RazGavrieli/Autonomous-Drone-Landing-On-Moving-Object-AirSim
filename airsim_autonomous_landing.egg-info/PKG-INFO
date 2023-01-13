@@ -1,0 +1,13 @@
+Metadata-Version: 2.1
+Name: airsim-autonomous-landing
+Version: 0.1.0
+Summary: easy to use autonomous landing package for airsim
+Home-page: https://github.com/RazGavrieli/Autonomous-Drone-Landing-On-Moving-Object-AirSim
+Author: Raz Gavrieli
+Author-email: razgavrieli@gmail.com
+License: MIT
+Description-Content-Type: text/markdown
+
+# Autonomous-Drone-Landing-On-Moving-Object-AirSim
+Tested on airsim for unreal 4.27. <br> 
+Runs on blocks project (deafult project for airsim) <br>

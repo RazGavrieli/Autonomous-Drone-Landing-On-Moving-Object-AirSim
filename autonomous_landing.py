@@ -8,7 +8,7 @@ import numpy as np
 import cv2
 import os
 
-logger.basicConfig(level=logger.INFO)
+logger.basicConfig(level=logger.ERROR)
 
 class autonomous_landing:
     """
@@ -40,10 +40,9 @@ class autonomous_landing:
 
     def GET_IMAGE(self, string):
         image_data = self.client.simGetImages([airsim.ImageRequest("0", airsim.ImageType.Segmentation, False, False)])  #scene vision image in uncompressed RGBA array
-        #save segmentation images in various formats
+        # save segmentation images in various formats
         for idx, response in enumerate(image_data):
             filename = 'temp/py_seg_' + str(idx)
-            print("Type %d, size %d" % (response.image_type, len(response.image_data_uint8)))
             img1d = np.fromstring(response.image_data_uint8, dtype=np.uint8) #get numpy array
             img_rgb = img1d.reshape(response.height, response.width, 3) #reshape array to 3 channel image array H X W X 3
             cv2.imwrite(os.path.normpath(filename + string + '.png'), img_rgb) # write to png
@@ -52,7 +51,6 @@ class autonomous_landing:
         """
         This is the function that initializes the drone's flight, from take-off to mission to autonomous landing. 
         """
-
         ## ALGO STAGE 1
         
         self.disarm()
@@ -65,7 +63,7 @@ class autonomous_landing:
         
 
         self.GET_DIRECTION_OF_TARGET()
-        self.client.rotateByYawRateAsync(100, 2).join()
+        self.client.rotateByYawRateAsync(20, self.direction_of_target*3).join()
         print(self.client.getMultirotorState().__dict__)
 
 
@@ -127,7 +125,6 @@ class autonomous_landing:
         time.sleep(self.COMMAND_TIME)
         x2, y2 = self.searchTarget()
         self.speed_of_target = math.dist([x1, y1], [x2, y2])/self.COMMAND_TIME
-
 
         self.direction_of_target = (y1-y2)/(x1-x2)
         self.b = y1 - self.direction_of_target*x1
